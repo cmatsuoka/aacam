@@ -181,15 +181,17 @@ static int init_video()
 {
 	int i;
 
-	if (fd = open(videodev, O_RDWR) < 0) {
+	if ((fd = open(videodev, O_RDWR)) < 0) {
 		perror(videodev);
 		goto err;
 	}
+	printf("using %s\n", videodev);
 
 	if (ioctl(fd, VIDIOC_QUERYCAP, &capability) < 0) {
 		perror("VIDIOC_QUERYCAP");
 		goto err1;
 	}
+	printf("device is %s (%s)\n", capability.card, capability.driver);
 
 	if (capability.capabilities & V4L2_CAP_VIDEO_CAPTURE == 0) {
 		fprintf(stderr, "can't capture from device\n");

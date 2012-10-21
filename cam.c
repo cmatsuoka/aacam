@@ -25,10 +25,11 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#include <linux/videodev.h>
+#include <linux/videodev2.h>
 #include <pthread.h>
 #include <getopt.h>
 #include <aalib.h>
+#include <errno.h>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -38,12 +39,21 @@
 #define YSIZ (aa_imgheight(context)-2*context->muly)
 #define YMAX (aa_imgheight(context)/context->muly-1)
 
+struct my_buffer {
+	void *start;
+	size_t length;
+};
+
 static int fd;				/* video device descriptor */
-static unsigned char *fb;		/* mmap'd framebuffer */
 static int rgb = 0;			/* use RGB instead of YUV */
 static int running;
 static struct video_mmap vid_mmap;
-static struct video_capability capability;
+static struct v4l2_capability capability;
+static struct v4l2_cropcap cropcap;
+static struct v4l2_crop crop;
+static struct v4l2_format format;
+static struct v4l2_requestbuffers requestbuffers;
+static struct my_buffer *buffers;
 static aa_context *context;
 static aa_renderparams *params;
 static pthread_t grab_thread;
@@ -63,8 +73,47 @@ static int get_time ()
 }
 
 
+static void start_capture()
+{
+	int i;
+	enum v4l2_buf_type buf_type;
+
+	for (i = 0; i < requestbuffers.count; i++) {
+		struct v4l2_buffer buffer;
+
+		memset(&buffer, 0, sizeof(struct v4l2_buffer));
+		buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		buffer.memory = V4L2_MEMORY_MMAP;
+		buffer.index = i;
+
+		if (ioctl(fd, VIDIOC_QBUF, &buffer) < 0) {
+			perror("VIDIOC_QBUF");
+			return;
+		}
+
+		buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		if (ioctl(fd, VIDIOC_STREAMON, &buf_type) < 0) {
+			perror("VIDIOC_STREAMON");
+			return;
+		}
+	}
+}
+
+
+static void stop_capture()
+{
+	enum v4l2_buf_type buf_type;
+
+	buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	if (ioctl(fd, VIDIOC_STREAMOFF, &buf_type) < 0) {
+		perror("VIDIOC_STREAMOFF");
+	}
+}
+
+
 static void uninitialize ()
 {
+	stop_capture();
 	close (fd);
 	pthread_join (grab_thread, NULL);
 	aa_uninitkbd (context);
@@ -77,14 +126,25 @@ static void *grab ()
 {
 	int i, j;
 	int t0, t1;
+	struct v4l2_buffer buffer;
+	unsigned char *fb;
 
 	while (running) {
 		t0 = get_time ();
-		ioctl (fd, VIDIOCSYNC, &vid_mmap);
-		if (ioctl(fd, VIDIOCMCAPTURE, &vid_mmap) == -1) {
-			perror ("Fatal");
-			exit (-1);
+
+		memset(&buffer, 0, sizeof(struct v4l2_buffer));
+		buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		buffer.memory = V4L2_MEMORY_MMAP;
+
+		if (ioctl(fd, VIDIOC_DQBUF, &buffer) < 0) {
+			if (errno != EAGAIN) {
+				perror("VIDIOC_DQBUF");
+				return;
+			}
 		}
+
+		//fb = buffer.start;
+
 		for (j = 0; j < YSIZ; j++) {
 			for (i = 0; i < XSIZ; i++) {
 				int r = j * 240 / YSIZ;
@@ -105,6 +165,11 @@ static void *grab ()
 		aa_flush(context);
 		pthread_mutex_unlock (&grab_mutex);
 
+		if (ioctl(fd, VIDIOC_QBUF, &buffer) < 0) {
+			perror("VIDIOC_QBUF");
+			return;
+		}
+
 		t1 = get_time ();
 
 		fps = 1000.0 / (t1 - t0);
@@ -114,29 +179,100 @@ static void *grab ()
 
 static int init_video ()
 {
+	int i;
 
-	fd = open (videodev, O_RDWR);
-	if (ioctl(fd,VIDIOCGCAP,&capability) == -1) {
-		perror ("Fatal");
-		return -1;
+	if (fd = open(videodev, O_RDWR) < 0) {
+		perror(videodev);
+		goto err;
 	}
-	vid_mmap.format = VIDEO_PALETTE_YUV422P;
-	vid_mmap.frame = 0;
-	vid_mmap.width = 320;
-	vid_mmap.height = 240;
 
-	if (ioctl(fd, VIDIOCMCAPTURE, &vid_mmap) == -1) {
-		vid_mmap.format = VIDEO_PALETTE_RGB24;
-		if (ioctl(fd, VIDIOCMCAPTURE, &vid_mmap) == -1) {
-			fprintf (stderr, "YUV422P/RGB24 modes not available. Giving up.\n");
-			return -1;
+	if (ioctl(fd, VIDIOC_QUERYCAP, &capability) < 0) {
+		perror("VIDIOC_QUERYCAP");
+		goto err1;
+	}
+
+	if (capability.capabilities & V4L2_CAP_VIDEO_CAPTURE == 0) {
+		fprintf(stderr, "can't capture from device\n");
+		goto err1;
+	}
+
+	if (capability.capabilities & V4L2_CAP_STREAMING == 0) {
+		fprintf(stderr, "can't stream from device\n");
+		goto err1;
+	}
+
+	memset(&cropcap, 0, sizeof(struct v4l2_cropcap));
+	cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	if (ioctl(fd, VIDIOC_CROPCAP, &cropcap) == 0) {
+		crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		crop.c = cropcap.defrect;
+
+		ioctl(fd, VIDIOC_S_CROP, &crop);
+	}
+
+	memset(&format, 0, sizeof(struct v4l2_format));
+	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	format.fmt.pix.field = V4L2_FIELD_ANY;
+	format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV422P;
+	format.fmt.pix.width = 320;
+	format.fmt.pix.height = 240;
+
+	if (ioctl(fd, VIDIOC_G_FMT, &format) < 0) {
+		format.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB24;
+		if (ioctl(fd, VIDIOC_G_FMT, &format) < 0) {
+			perror("VIDIOC_G_FMT");
+			goto err1;
 		}
 		rgb = 1;
 	}
+	
+	memset(&requestbuffers, 0, sizeof(struct v4l2_requestbuffers));
+	requestbuffers.count = 4;
+	requestbuffers.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	requestbuffers.memory = V4L2_MEMORY_MMAP;
 
-	fb = (unsigned char*)mmap(0, 320*240*(rgb?3:1), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	if (ioctl(fd, VIDIOC_REQBUFS, &requestbuffers) < 0) {
+		perror("VIDIOC_REQBUFS");
+		goto err1;
+	}
+
+	buffers = calloc(requestbuffers.count, sizeof(struct my_buffer));
+	if (buffers == NULL) {
+		fprintf(stderr, "can't alloc buffers\n");
+		goto err1;
+	}
+
+	for (i = 0; i < requestbuffers.count; i++) {
+		struct v4l2_buffer buffer;
+
+		memset(&buffer, 0, sizeof(struct v4l2_buffer));
+		buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		buffer.memory = V4L2_MEMORY_MMAP;
+		buffer.index = i;
+
+		if (ioctl(fd, VIDIOC_QUERYBUF, &buffer) < 0) {
+			perror("VIDIOC_QUERYBUF");
+			goto err2;
+		}
+
+		buffers[i].length = buffer.length;
+		buffers[i].start = mmap(NULL, buffer.length, PROT_READ |
+				PROT_WRITE, MAP_SHARED, fd, buffer.m.offset);
+		if (buffers[i].start == MAP_FAILED) {
+			perror("mmap");
+			goto err2;
+		}
+	}
 
 	return 0;
+
+err2:
+	free(buffers);
+err1:
+	close(fd);
+err:
+	return -1;
 }
 
 
@@ -159,17 +295,30 @@ static void render ()
 	int i, j;
 	int key, mode=0;
 	int ctrl[3];
-	struct video_picture p;
+	struct v4l2_queryctrl queryctrl;
+	struct v4l2_control control;
+	int brightness, contrast, whiteness;
+
+	start_capture();
 
 	running = 1;
-	if (ioctl (fd, VIDIOCGPICT, &p) < 0)
-		return;
-	ctrl[0] = p.brightness >> 8;
-	ctrl[1] = p.contrast >> 8;
-	ctrl[2] = p.whiteness >> 8;
+
+	memset(&queryctrl, 0, sizeof (queryctrl));
+
+	queryctrl.id = V4L2_CID_BRIGHTNESS;
+	ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl);
+	brightness = ctrl[0] = queryctrl.default_value >> 8;
+
+	queryctrl.id = V4L2_CID_CONTRAST;
+	ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl);
+	contrast = ctrl[1] = queryctrl.default_value >> 8;
+
+	queryctrl.id = V4L2_CID_WHITENESS;
+	ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl);
+	whiteness = ctrl[2] = queryctrl.default_value >> 8;
 
 	aa_printf (context, 0, YMAX-1, AA_BOLD, "v4l: %s (%s)",
-		capability.name, rgb ? "RGB24" : "YUV422P");
+		capability.card, rgb ? "RGB24" : "YUV422P");
 
 	pthread_create(&grab_thread, NULL, grab, NULL);
 
@@ -205,17 +354,30 @@ static void render ()
 			break;
 		}
 
-		if (ctrl[0] != (p.brightness >> 8) ||
-			ctrl[1] != (p.contrast >> 8) ||
-			ctrl[2] != (p.whiteness >> 8)) {
+		if (ctrl[0] != brightness || ctrl[1] != contrast ||
+						ctrl[2] != whiteness) {
 			pthread_mutex_lock (&grab_mutex);
-			p.brightness = ctrl[0] << 8;
-			p.contrast = ctrl[1] << 8;
-			p.whiteness = ctrl[2] << 8;
-			if (ioctl (fd, VIDIOCSPICT, &p) < 0) {
-				printf ("Aiee!\n");
-				return;
+
+			memset (&control, 0, sizeof (control));
+
+			if (ctrl[0] != brightness) {
+				control.id = V4L2_CID_BRIGHTNESS;	
+				control.value = ctrl[0] << 8;
+				ioctl(fd, VIDIOC_S_CTRL, &control);
 			}
+
+			if (ctrl[1] != contrast) {
+				control.id = V4L2_CID_CONTRAST;	
+				control.value = ctrl[1] << 8;
+				ioctl(fd, VIDIOC_S_CTRL, &control);
+			}
+
+			if (ctrl[2] != whiteness) {
+				control.id = V4L2_CID_WHITENESS;	
+				control.value = ctrl[2] << 8;
+				ioctl(fd, VIDIOC_S_CTRL, &control);
+			}
+
 			pthread_mutex_unlock (&grab_mutex);
 		}
 	}

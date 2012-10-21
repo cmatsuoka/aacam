@@ -10,7 +10,7 @@ AC_CHECK_LIB(pthread, pthread_create)
 
 dnl Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS(fcntl.h malloc.h aalib.h sys/ioctl.h sys/videodev.h unistd.h)
+AC_CHECK_HEADERS(fcntl.h malloc.h aalib.h sys/ioctl.h linux/videodev2.h unistd.h)
 AC_STRUCT_ST_BLKSIZE
 
 dnl Checks for typedefs, structures, and compiler characteristics.

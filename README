@@ -1,7 +1,12 @@
+This is a "quick and dirty aalib v4l client" dated 2000/07/10.
+
+Ancient spirits of evil, transform this decayed form to... something
+that works again!
+
 
 Requirements:
 
-- aalib 1.2
-- v4l and supported device
+- aalib 1.2 or newer
+- v4l2 and supported device
 
 

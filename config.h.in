@@ -1,0 +1,37 @@
+/* config.h.in.  Generated automatically from configure.in by autoheader.  */
+
+/* Define if you have a working `mmap' system call.  */
+#undef HAVE_MMAP
+
+/* Define if your struct stat has st_blksize.  */
+#undef HAVE_ST_BLKSIZE
+
+/* Define if you have the ANSI C header files.  */
+#undef STDC_HEADERS
+
+/* Define if you have the getpagesize function.  */
+#undef HAVE_GETPAGESIZE
+
+/* Define if you have the <aalib.h> header file.  */
+#undef HAVE_AALIB_H
+
+/* Define if you have the <fcntl.h> header file.  */
+#undef HAVE_FCNTL_H
+
+/* Define if you have the <malloc.h> header file.  */
+#undef HAVE_MALLOC_H
+
+/* Define if you have the <sys/ioctl.h> header file.  */
+#undef HAVE_SYS_IOCTL_H
+
+/* Define if you have the <sys/videodev.h> header file.  */
+#undef HAVE_SYS_VIDEODEV_H
+
+/* Define if you have the <unistd.h> header file.  */
+#undef HAVE_UNISTD_H
+
+/* Define if you have the aa library (-laa).  */
+#undef HAVE_LIBAA
+
+/* Define if you have the pthread library (-lpthread).  */
+#undef HAVE_LIBPTHREAD

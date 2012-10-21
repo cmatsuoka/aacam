@@ -77,10 +77,9 @@ static void start_capture()
 {
 	int i;
 	enum v4l2_buf_type buf_type;
+	struct v4l2_buffer buffer;
 
 	for (i = 0; i < requestbuffers.count; i++) {
-		struct v4l2_buffer buffer;
-
 		memset(&buffer, 0, sizeof(struct v4l2_buffer));
 		buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		buffer.memory = V4L2_MEMORY_MMAP;
@@ -90,12 +89,12 @@ static void start_capture()
 			perror("VIDIOC_QBUF");
 			return;
 		}
+	}
 
-		buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		if (ioctl(fd, VIDIOC_STREAMON, &buf_type) < 0) {
-			perror("VIDIOC_STREAMON");
-			return;
-		}
+	buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	if (ioctl(fd, VIDIOC_STREAMON, &buf_type) < 0) {
+		perror("VIDIOC_STREAMON");
+		return;
 	}
 }
 
@@ -324,7 +323,7 @@ static void render()
 	ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl);
 	whiteness = ctrl[2] = queryctrl.default_value >> 8;
 
-	aa_printf (context, 0, YMAX-1, AA_BOLD, "v4l: %s (%s)",
+	aa_printf(context, 0, YMAX-1, AA_BOLD, "v4l: %s (%s)",
 		capability.card, rgb ? "RGB24" : "YUV422P");
 
 	pthread_create(&grab_thread, NULL, grab, NULL);
@@ -425,4 +424,5 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
 

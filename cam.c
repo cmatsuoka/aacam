@@ -62,7 +62,7 @@ static double fps;
 static char *videodev = "/dev/video";
 
 
-static int get_time ()
+static int get_time()
 {
 	struct timeval tv;
 	struct timezone tz;
@@ -111,7 +111,7 @@ static void stop_capture()
 }
 
 
-static void uninitialize ()
+static void uninitialize()
 {
 	stop_capture();
 	close (fd);
@@ -122,7 +122,7 @@ static void uninitialize ()
 }
 
 
-static void *grab ()
+static void *grab()
 {
 	int i, j;
 	int t0, t1;
@@ -177,7 +177,7 @@ static void *grab ()
 }
 
 
-static int init_video ()
+static int init_video()
 {
 	int i;
 
@@ -276,7 +276,7 @@ err:
 }
 
 
-static int init_aalib ()
+static int init_aalib()
 {
 	if (!(context = aa_autoinit(&aa_defparams)))
 		return -1;
@@ -290,7 +290,7 @@ static int init_aalib ()
 }
 
 
-static void render ()
+static void render()
 {
 	int i, j;
 	int key, mode=0;
@@ -384,7 +384,7 @@ static void render ()
 }
 
 
-int main (int argc, char **argv)
+int main(int argc, char **argv)
 {
 	int o;
 
@@ -398,23 +398,23 @@ int main (int argc, char **argv)
 			default:
 				fprintf(stderr, "  -d <videodev>  select video device "
 				"(default is %s)\n\n%s", videodev, aa_help);
-			exit (0);
+			exit(0);
 			}
 		}
 	}
 
-	if (init_video () < 0) {
+	if (init_video() < 0) {
 		fprintf (stderr, "Error initializing video\n");
-		exit (-1);
+		exit(-1);
 	}
 
-	if (init_aalib () < 0) {
+	if (init_aalib() < 0) {
 		fprintf (stderr, "Error initializing aalib\n");
-		exit (-1);
+		exit(-1);
 	}
 
-	atexit (uninitialize);
-	render ();
+	atexit(uninitialize);
+	render();
 
 	return 0;
 }

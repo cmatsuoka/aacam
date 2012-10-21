@@ -202,6 +202,7 @@ static int init_video()
 		fprintf(stderr, "can't stream from device\n");
 		goto err1;
 	}
+	printf("can stream from device\n");
 
 	memset(&cropcap, 0, sizeof(struct v4l2_cropcap));
 	cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -228,6 +229,7 @@ static int init_video()
 		}
 		rgb = 1;
 	}
+	printf("format is %s\n", rgb ? "RGB24" : "YUV422");
 	
 	memset(&requestbuffers, 0, sizeof(struct v4l2_requestbuffers));
 	requestbuffers.count = 4;
@@ -238,6 +240,7 @@ static int init_video()
 		perror("VIDIOC_REQBUFS");
 		goto err1;
 	}
+	printf("%d buffers\n", requestbuffers.count);
 
 	buffers = calloc(requestbuffers.count, sizeof(struct my_buffer));
 	if (buffers == NULL) {
@@ -265,6 +268,8 @@ static int init_video()
 			perror("mmap");
 			goto err2;
 		}
+
+		printf("mmap buffer %d\n", i);
 	}
 
 	return 0;

@@ -389,15 +389,17 @@ int main (int argc, char **argv)
 	int o;
 
 	if (!aa_parseoptions(NULL, NULL, &argc, argv) || argc != 1) {
-		fprintf (stderr, "%s", aa_help);
-		exit (0);
-	}
-
-	while ((o = getopt (argc, argv, "d:")) != -1) {
-		switch (o) {
-		case 'd':
-			videodev = optarg;
-			break;
+		while ((o = getopt (argc, argv, "d:h")) != -1) {
+			switch (o) {
+			case 'd':
+				videodev = optarg;
+				break;
+			case 'h':
+			default:
+				fprintf(stderr, "  -d <videodev>  select video device "
+				"(default is %s)\n\n%s", videodev, aa_help);
+			exit (0);
+			}
 		}
 	}
 

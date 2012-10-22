@@ -53,7 +53,7 @@ static struct v4l2_cropcap cropcap;
 static struct v4l2_crop crop;
 static struct v4l2_format format;
 static struct v4l2_requestbuffers requestbuffers;
-static struct my_buffer *buffers;
+static struct my_buffer *my_buffers;
 static aa_context *context;
 static aa_renderparams *params;
 static pthread_t grab_thread;
@@ -142,18 +142,18 @@ static void *grab()
 			}
 		}
 
-		//fb = buffer.start;
+		fb = my_buffers[0].start;
 
 		for (j = 0; j < YSIZ; j++) {
 			for (i = 0; i < XSIZ; i++) {
 				int r = j * 240 / YSIZ;
 				int c = i * 320 / XSIZ;
+				int val = r * 320 + c;
 				unsigned char p;
-				p = rgb ?
-					(820 * fb[(r * 320 + c) * 3] +
-					6094 * fb[(r * 320 + c) * 3 + 1] +
-					3086 * fb[(r * 320 + c) * 3 + 2]) / 10000
-					: fb[r * 320 + c];
+				p = rgb ? (820 * fb[val * 3] +
+					6094 * fb[val * 3 + 1] +
+					3086 * fb[val * 3 + 2]) / 10000
+					: fb[val];
 				context->imagebuffer[j * XSIZ + i] = p;
 			}
 		}
@@ -231,7 +231,7 @@ static int init_video()
 	printf("format is %s\n", rgb ? "RGB24" : "YUV422");
 	
 	memset(&requestbuffers, 0, sizeof(struct v4l2_requestbuffers));
-	requestbuffers.count = 4;
+	requestbuffers.count = 1;
 	requestbuffers.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	requestbuffers.memory = V4L2_MEMORY_MMAP;
 
@@ -241,8 +241,8 @@ static int init_video()
 	}
 	printf("%d buffers\n", requestbuffers.count);
 
-	buffers = calloc(requestbuffers.count, sizeof(struct my_buffer));
-	if (buffers == NULL) {
+	my_buffers = calloc(requestbuffers.count, sizeof(struct my_buffer));
+	if (my_buffers == NULL) {
 		fprintf(stderr, "can't alloc buffers\n");
 		goto err1;
 	}
@@ -260,10 +260,10 @@ static int init_video()
 			goto err2;
 		}
 
-		buffers[i].length = buffer.length;
-		buffers[i].start = mmap(NULL, buffer.length, PROT_READ |
+		my_buffers[i].length = buffer.length;
+		my_buffers[i].start = mmap(NULL, buffer.length, PROT_READ |
 				PROT_WRITE, MAP_SHARED, fd, buffer.m.offset);
-		if (buffers[i].start == MAP_FAILED) {
+		if (my_buffers[i].start == MAP_FAILED) {
 			perror("mmap");
 			goto err2;
 		}
@@ -274,7 +274,7 @@ static int init_video()
 	return 0;
 
 err2:
-	free(buffers);
+	free(my_buffers);
 err1:
 	close(fd);
 err:

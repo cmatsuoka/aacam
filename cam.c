@@ -328,16 +328,18 @@ static void render()
 
 	pthread_create(&grab_thread, NULL, grab, NULL);
 
+#define ATTR(x,y) ((x)==(y) ? AA_REVERSE : AA_BOLD)
+
 	while (42) {
 		key = aa_getkey (context, 0);
 
-		pthread_mutex_lock (&grab_mutex);
-		aa_printf (context, 0, YMAX, AA_BOLD, "fps: %5.2f", fps);
-		aa_printf (context, 15, YMAX, mode==0 ? AA_REVERSE : AA_BOLD, "Bri:%3d", ctrl[0]);
-		aa_printf (context, 24, YMAX, mode==1 ? AA_REVERSE : AA_BOLD, "Con:%3d", ctrl[1]);
-		aa_printf (context, 33, YMAX, mode==2 ? AA_REVERSE : AA_BOLD, "Whi:%3d", ctrl[2]);
+		pthread_mutex_lock(&grab_mutex);
+		aa_printf(context, 0, YMAX, AA_BOLD, "fps: %5.2f", fps);
+		aa_printf(context, 15, YMAX, ATTR(mode, 0), "Bri:%3d", ctrl[0]);
+		aa_printf(context, 24, YMAX, ATTR(mode, 1), "Con:%3d", ctrl[1]);
+		aa_printf(context, 33, YMAX, ATTR(mode, 2), "Whi:%3d", ctrl[2]);
 		aa_flush(context);
-		pthread_mutex_unlock (&grab_mutex);
+		pthread_mutex_unlock(&grab_mutex);
 
 #define INC_RANGE(x,y) { if (x < y) x++; }
 #define DEC_RANGE(x,y) { if (x > 0) x--; }

@@ -1,15 +1,14 @@
 
 VERSION	= 0.0.4
 DIST	= aacam-$(VERSION)
-CC	= @CC@
-CFLAGS	= @CFLAGS@ -D_REENTRANT
-LD	= @CC@
-LDFLAGS	= @LDFLAGS@
+CC	= gcc
+CFLAGS	= -g -O2 -D_REENTRANT
+LD	= gcc
+LDFLAGS	= 
 BIN	= aacam
-LIBS	= @LIBS@
+LIBS	= -lpthread -laa 
 OBJS	= cam.o
-DFILES	= Makefile.in README configure configure.in config.h.in \
-	  $(OBJS:.o=.c)
+DFILES	= README $(OBJS:.o=.c)
 
 .c.o:
 	$(CC) -c $(CFLAGS) -o $*.o $<
@@ -23,7 +22,6 @@ clean:
 	rm -f core $(OBJS) $(BIN)
 
 distclean: clean
-	rm -f Makefile config.h config.cache config.log config.status
 
 dist:
 	rm -Rf $(DIST)

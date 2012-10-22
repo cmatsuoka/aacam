@@ -31,10 +31,6 @@
 #include <aalib.h>
 #include <errno.h>
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define XSIZ aa_imgwidth(context)
 #define YSIZ (aa_imgheight(context)-2*context->muly)
 #define YMAX (aa_imgheight(context)/context->muly-1)
